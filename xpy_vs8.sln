@@ -1,0 +1,39 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 9.00
+# Visual Studio 2005
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xlw", "projects\vs8\xlw\xlw.vcproj", "{6F2C4517-5B24-413C-AE45-7B070E8C5D16}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xpy", "projects\vs8\xpy\xpy.vcproj", "{91D3FE72-783D-46FB-BC9E-FC45DB19F58B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{6F2C4517-5B24-413C-AE45-7B070E8C5D16} = {6F2C4517-5B24-413C-AE45-7B070E8C5D16}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xpy_tests", "projects\vs8\xpy_tests\xpy_tests.vcproj", "{63BEE6D6-6BE3-47F3-B26A-83041F451878}"
+	ProjectSection(ProjectDependencies) = postProject
+		{6F2C4517-5B24-413C-AE45-7B070E8C5D16} = {6F2C4517-5B24-413C-AE45-7B070E8C5D16}
+		{91D3FE72-783D-46FB-BC9E-FC45DB19F58B} = {91D3FE72-783D-46FB-BC9E-FC45DB19F58B}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		xpy27|Win32 = xpy27|Win32
+		xpyd27|Win32 = xpyd27|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6F2C4517-5B24-413C-AE45-7B070E8C5D16}.xpy27|Win32.ActiveCfg = Release|Win32
+		{6F2C4517-5B24-413C-AE45-7B070E8C5D16}.xpy27|Win32.Build.0 = Release|Win32
+		{6F2C4517-5B24-413C-AE45-7B070E8C5D16}.xpyd27|Win32.ActiveCfg = Debug|Win32
+		{6F2C4517-5B24-413C-AE45-7B070E8C5D16}.xpyd27|Win32.Build.0 = Debug|Win32
+		{91D3FE72-783D-46FB-BC9E-FC45DB19F58B}.xpy27|Win32.ActiveCfg = xpy27|Win32
+		{91D3FE72-783D-46FB-BC9E-FC45DB19F58B}.xpy27|Win32.Build.0 = xpy27|Win32
+		{91D3FE72-783D-46FB-BC9E-FC45DB19F58B}.xpyd27|Win32.ActiveCfg = xpyd27|Win32
+		{91D3FE72-783D-46FB-BC9E-FC45DB19F58B}.xpyd27|Win32.Build.0 = xpyd27|Win32
+		{63BEE6D6-6BE3-47F3-B26A-83041F451878}.xpy27|Win32.ActiveCfg = Debug|Win32
+		{63BEE6D6-6BE3-47F3-B26A-83041F451878}.xpy27|Win32.Build.0 = Debug|Win32
+		{63BEE6D6-6BE3-47F3-B26A-83041F451878}.xpyd27|Win32.ActiveCfg = Debug|Win32
+		{63BEE6D6-6BE3-47F3-B26A-83041F451878}.xpyd27|Win32.Build.0 = Debug|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

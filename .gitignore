@@ -1,0 +1,34 @@
+#Visual Studio
+*.dll
+*.xll
+*.exe
+*.pch
+*.obj
+*.exp
+*.lib
+*.suo
+*.idb
+*.pdb
+*.user
+*.ilk
+*.dep
+*.ncb
+BuildLog.htm
+DebugBuildLog.htm
+*.intermediate.manifest
+*.embed.manifest
+*.embed.manifest.res
+
+#cvs
+.cvsignore
+cvs
+*.orig
+
+#python
+*.pyc
+
+# specific files
+
+
+
+

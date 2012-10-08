@@ -1,0 +1,1 @@
+make xpy compile withour precompiled headers (i.e. all necessary includes are in the right place) then re-add precompilation

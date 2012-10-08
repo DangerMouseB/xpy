@@ -1,0 +1,7 @@
+we must build a lib to get the goodies in xpy to test. we do this in a pre-link step:
+
+		lib -out:"$(IntDir)\UtilsForXpyTests.lib" "$(SolutionDir)int\xpy\xpyd27\*.obj"
+
+additional dependencies is set to:
+
+	$(IntDir)\UtilsForXpyTests.lib psapi.lib
