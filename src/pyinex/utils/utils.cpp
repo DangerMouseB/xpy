@@ -49,16 +49,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using namespace xlw;
 
-//////////////////////////////////////////////////////////////////////////////
 
-void
-PrintError(  pyxErrorSeverity severity,  
-             const char* file,
-             const char* function,
-             int line,
-             const char* msg,
-             ... )
-{
+namespace {
+	using std::string;
+	using std::wstring;
+}
+
+
+void PrintError(pyxErrorSeverity severity, char const *file, char const *function, int line, char const *msg, ...) {
     // Error messages are specified with a C-style format string, so until we
     // move to Boost.Format, we're stuck with printf and its derivatives.
     // Using C++ ostringstream, too, to handle the prepended info, because I don't
@@ -85,12 +83,9 @@ PrintError(  pyxErrorSeverity severity,
     printf("%s", stm.str().c_str());
 }
 
-//////////////////////////////////////////////////////////////////////////////
-  
-bool 
-GetWindowsErrorText(std::string& text)
-{
-    DWORD dw = GetLastError();
+
+bool GetWindowsErrorText(string& text) {
+	DWORD dw = GetLastError();
     LPTSTR lpMsgBuf;
 
     FormatMessage(
@@ -110,13 +105,10 @@ GetWindowsErrorText(std::string& text)
     return true;
 }
 
-//////////////////////////////////////////////////////////////////////////////
 
-std::string
-WcharToASCIIRepr( const std::wstring& w )
-{
+string WcharToASCIIRepr(wstring const &w) {
     unsigned int wlen = w.length();
-    std::string s;
+    string s;
     s.reserve(6*wlen + 2); // enough room if all chars are non-ASCII
     char hexBuff[7];
 
@@ -132,9 +124,8 @@ WcharToASCIIRepr( const std::wstring& w )
     return s;
 }
 
-//////////////////////////////////////////////////////////////////////////////
 
-bool SplitPathBasenameExtension(std::wstring const &filename, std::wstring &path, std::wstring &basename, std::wstring &extension) {
+bool SplitPathBasenameExtension(wstring const &filename, wstring &path, wstring &basename, wstring &extension) {
 	// Separate the basename and path, looking for special cases
 
 	if (filename.empty()) {
@@ -142,7 +133,7 @@ bool SplitPathBasenameExtension(std::wstring const &filename, std::wstring &path
         return false;
     }
 
-    std::wstring::size_type found = filename.find_last_of(L"/\\");
+    wstring::size_type found = filename.find_last_of(L"/\\");
     // Trailing directory separator = no basename (or extension)
     if (found == filename.length() - 1) {
         path = filename;
@@ -152,7 +143,7 @@ bool SplitPathBasenameExtension(std::wstring const &filename, std::wstring &path
     }
 
     // Does filename hae no preceding path?
-    if (found == std::wstring::npos) {
+    if (found == wstring::npos) {
         path = L"";
         basename = filename;
     } else { // Path is present
@@ -164,7 +155,7 @@ bool SplitPathBasenameExtension(std::wstring const &filename, std::wstring &path
     found = basename.rfind(L".");
 
     // Leading period, trailing period, or no period = no extension
-    if (found == 0 || found == basename.length() - 1 || found == std::wstring::npos) {
+    if (found == 0 || found == basename.length() - 1 || found == wstring::npos) {
         extension = L"";
         return true;
     }
@@ -174,16 +165,13 @@ bool SplitPathBasenameExtension(std::wstring const &filename, std::wstring &path
     return true;
 }
 
-//////////////////////////////////////////////////////////////////////////////
-//
+
 // Code to convert FROM Excel TO Python
-// 
 
 namespace {
     
     // Excel error codes taken from xlcall32, Microsoft's Excel C API header file
-    const char* ExcelTextError(int excelCode) 
-    {
+    const char* ExcelTextError(int excelCode) {
         switch(excelCode) {
             case 0: // xlerrNull
                 return "#NULL!";
@@ -201,28 +189,24 @@ namespace {
                 return "#N/A";
         }
         return "Unrecognized Excel error code";
-    }     
+    }
 
-    bool
-    ConvertCellValueToPyObject( const CellValue& rCV,
-        PyObject*& rpObj )
-    {
+
+    bool ConvertCellValueToPyObject(CellValue const &rCV, PyObject * &rpObj) {
         rpObj = NULL;
 
         if (rCV.IsAString()) { // Strings from pre-2007 Excel; wstrings from 2007+
 
 #if PY_MAJOR_VERSION < 3
-            // Excel 2002 or 2003, calling into Python 2.x
-            rpObj = PyString_FromString( rCV.StringValue().c_str() );                
+            rpObj = PyString_FromString(rCV.StringValue().c_str());                // Excel 2002 or 2003, calling into Python 2.x
 #else 
-            // Excel 2002 or 2003, calling into Python 3.x
-            rpObj = PyUnicode_FromString( rCV.StringValue().c_str() );
+            rpObj = PyUnicode_FromString(rCV.StringValue().c_str());				// Excel 2002 or 2003, calling into Python 3.x
 #endif
             return (rpObj != NULL);
         }
         
         if (rCV.IsAWstring()) {
-            const std::wstring& rS = rCV.WstringValue();
+            const wstring& rS = rCV.WstringValue();
 
 #if PY_MAJOR_VERSION < 3
             // Excel 2007 calling into Python 2.x
@@ -237,7 +221,7 @@ namespace {
             // test is quite trivial; just make sure that each character code is <= 0x7F.
 
             bool bAllASCII = true;
-            std::string tmp;
+            string tmp;
             unsigned long len = rS.length();
             tmp.resize(len);
             for(unsigned long i = 0; i < len; ++i) {
@@ -271,9 +255,8 @@ namespace {
             return (rpObj != NULL); 
         }
 
-        if (rCV.IsXlfOper()) {
+        if (rCV.IsXlfOper())
             return false; // Should never happen in Excel
-        }
 
         if (rCV.IsError()) {
 #if PY_MAJOR_VERSION < 3
@@ -293,14 +276,11 @@ namespace {
         return true;
     }
 
+
 }
 
-//////////////////////////////////////////////////////////////////////////////
 
-bool
-ConvertCellMatrixToPyObject( const CellMatrix& rCM,
-                             PyObject*& rpObj )
-{
+bool ConvertCellMatrixToPyObject(CellMatrix const &rCM, PyObject * &rpObj) {
     bool rc = true;
     long i, j, cols, rows;
     PyObject *pCols, *pValue;
@@ -362,16 +342,12 @@ ConvertCellMatrixToPyObject( const CellMatrix& rCM,
     return rc;
 }
 
-//////////////////////////////////////////////////////////////////////////////
-//
+
 // Code to convert back FROM Python TO Excel
-// 
 
 namespace {
 
-    bool
-    ConvertPyObjectToCellValue( PyObject* pObj, CellValue& rVal ) 
-    {
+	bool ConvertPyObjectToCellValue(PyObject *pObj, CellValue &rVal) {
         const char* pTypeName = Py_TYPE(pObj)->tp_name;
         if (PyBool_Check(pObj)) {
             if (pObj == Py_True) {
@@ -405,7 +381,7 @@ namespace {
 #else
                 Py_ssize_t len = PyUnicode_GetSize(pObj);
 #endif
-                std::wstring tmp;
+                wstring tmp;
                 // Unclear if PyUnicode_AsWideChar copies in a null terminator, but the wstring
                 // should do it internally. As an experiment, I tried adding in one deliberately, 
                 // and it returned a garbage last character to Excel.
@@ -452,33 +428,28 @@ namespace {
         return true;
     }
 
-    inline bool PyObjIsAnElementalType(const PyObject* pObj) 
-    {
-        return  ( PyBool_Check(pObj) || PyLong_Check(pObj) || PyFloat_Check(pObj) ||
-                  PyUnicode_Check(pObj) || pObj == Py_None
-                 // All ints are long in 3.0, and all strings are Unicode. Look for the older
-                 // int and string types in pre-3.0 versions.
+
+    inline bool PyObjIsAnElementalType(const PyObject* pObj) {
+        return (PyBool_Check(pObj) || PyLong_Check(pObj) || PyFloat_Check(pObj) || PyUnicode_Check(pObj) || pObj == Py_None
+                 // All ints are long in 3.0, and all strings are Unicode. Look for the older int and string types in pre-3.0 versions.
 #if PY_MAJOR_VERSION < 3
-                 || PyInt_Check(pObj)|| PyString_Check(pObj));
-#else 
-                 );
-#endif
+                 || PyInt_Check(pObj)|| PyString_Check(pObj)
+#endif 
+		);
     }
 
-    inline bool PyObjIsATupleOrList(const PyObject* pObj) 
-    {
+
+	inline bool PyObjIsATupleOrList(const PyObject* pObj) {
         return  (PyTuple_Check(pObj) || PyList_Check(pObj));
     }
 
+
     // One-dimensional sequence is an elemental type, or tuple or list that contains only elemental types
-    inline bool
-    PyObjIsOneDimensional( PyObject* pObj, bool& rOneD ) 
-    {
-        assert(pObj);
+	inline bool PyObjIsOneDimensional(PyObject *pObj, bool &rOneD) {
+		assert(pObj);
         rOneD = true;
-        if (PyObjIsAnElementalType(pObj)) {
+        if (PyObjIsAnElementalType(pObj))
             return true;
-        }
 
         // Could be something we don't handle (like a dictionary)
         if (!PyObjIsATupleOrList(pObj)) {
@@ -503,9 +474,8 @@ namespace {
         return true;
     }
 
-    inline bool
-    OneDimensionalPyObjToCellMatrix( PyObject* pObj, CellMatrix& rMat ) 
-    {
+
+    inline bool OneDimensionalPyObjToCellMatrix(PyObject *pObj, CellMatrix &rMat) {
         bool rc = true;
         assert(pObj);
     
@@ -535,13 +505,13 @@ namespace {
         }
         return rc;
     }
-}
 
-//////////////////////////////////////////////////////////////////////////////
 
-bool
-ConvertPyObjectToCellMatrix( PyObject* pTopObj, CellMatrix& rMat ) 
-{
+} // namespace
+
+
+
+bool ConvertPyObjectToCellMatrix(PyObject *pTopObj, CellMatrix &rMat) {
     if (!pTopObj) {
         ERROUT("Top-level object is NULL");
         return false;
@@ -613,11 +583,8 @@ ConvertPyObjectToCellMatrix( PyObject* pTopObj, CellMatrix& rMat )
     return rc;
 }           
 
-//////////////////////////////////////////////////////////////////////////////
 
-void
-CellMatrixDump( xlw::CellMatrix& rMat )
-{
+void CellMatrixDump(xlw::CellMatrix &rMat) {
     unsigned long rows = rMat.RowsInStructure();
     unsigned long cols = rMat.ColumnsInStructure();
     unsigned long i, j;
@@ -655,4 +622,5 @@ CellMatrixDump( xlw::CellMatrix& rMat )
     printf("\n");
 }
 
-//////////////////////////////////////////////////////////////////////////////
+
+

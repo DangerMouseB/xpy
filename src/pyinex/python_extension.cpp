@@ -47,15 +47,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using namespace xlw;
 
-//////////////////////////////////////////////////////////////////////////////
 
 namespace {
-    
-    // These are zero-indexed coming back from XLW
-    // Leaving them that way, as that will be useful for A1-style cell calcs
-    // R1C1 callers will increment; A1 callers will not
 
-    void GetCallingSheetColRow( std::string* pSheet, int& rCol, int& rRow ) {
+	using std::string;
+
+    
+    // These are zero-indexed coming back from XLW. Leaving them that way, as that will 
+	// be useful for A1-style cell calcs. R1C1 callers will increment; A1 callers will not
+
+    void GetCallingSheetColRow(string *pSheet, int &rCol, int &rRow) {
         XlfOper caller;
         XlfExcel::Instance().Call(xlfCaller,caller, 0);
         if (!caller.IsSRef()) {
@@ -100,7 +101,7 @@ namespace {
     //
     // Takes a zero-indexed col.
 
-    void ConvertColnumToText( int col, std::string& colText ) {
+    void ConvertColnumToText(int col, string& colText) {
         // From http://msdn.microsoft.com/en-us/library/aa730921.aspx:
         //
         // The Excel 2007 "Big Grid" increases the maximum number of rows per worksheet 
@@ -131,12 +132,11 @@ namespace {
         char colName[4];
         colName[3] = 0;
         int colDx = 2;
-        while( true ) {
+        while(true) {
             remainder = col % 26;
             colName[colDx] = 'A' + remainder;
-            if (col < 26) {
+            if (col < 26)
                 break;
-            }
             col = ((col - remainder) / 26) - 1;
             --colDx;
         }
@@ -144,39 +144,33 @@ namespace {
         colText = colName + colDx;
     }
 
-    //////////////////////////////////////////////////////////////////////////////
-
-    void AssembleCallerName( bool R1C1,     // true = R1C1, false = A1
-                        bool full,     //true = sheet name prepended, false == no sheet name
-                        std::string& rCallerName ) {
-        std::string sheet;
+	// isR1C1 -> true = R1C1, false = A1
+	// isFull -> true = sheet name prepended, false == no sheet name
+    void AssembleCallerName(bool isR1C1, bool isFull, string& rCallerName) {
+        string sheet;
         int col, row;
-        GetCallingSheetColRow( full ? &sheet : NULL, col, row );
+        GetCallingSheetColRow(isFull ? &sheet : NULL, col, row );
         
         std::ostringstream ostr;
-        if (full) {
+        if (isFull)
             ostr << sheet << "!";
-        }
 
-        if (R1C1) {
+        if (isR1C1) {
             ostr << "R" << (row + 1) << "C" << (col + 1);
         } else {
-            std:: string colText;
-            ConvertColnumToText( col, colText );
+            string colText;
+            ConvertColnumToText(col, colText);
             ostr << colText << row + 1;
         }
 
         rCallerName = ostr.str();
     }
 
-    //////////////////////////////////////////////////////////////////////////////
-
-    PyObject* AssembleCallerNamePyObj( bool R1C1,      // true = R1C1, false = A1
-                             bool full )     //true = sheet name prepended, false == no sheet name
-    {    
-        std::string callerName;
-        AssembleCallerName(R1C1, full, callerName);
-
+	// isR1C1 -> true = R1C1, false = A1
+	// isFull -> true = sheet name prepended, false == no sheet name
+    PyObject* AssembleCallerNamePyObj(bool isR1C1, bool isFull) {    
+        string callerName;
+        AssembleCallerName(isR1C1, isFull, callerName);
 #if PY_MAJOR_VERSION < 3
         return PyString_FromString(callerName.c_str());
 #else 
@@ -184,22 +178,18 @@ namespace {
 #endif
     }
 
-    //////////////////////////////////////////////////////////////////////////////
-
 } // namespace
 
-static PyObject* pyinex_CallerA1(PyObject *self, PyObject *args)       { return AssembleCallerNamePyObj(false, false); }
 
-static PyObject* pyinex_CallerA1Full(PyObject *self, PyObject *args)   { return AssembleCallerNamePyObj(false, true); }
+static PyObject * pyinex_CallerA1(PyObject *pSelf, PyObject *pArgs) {return AssembleCallerNamePyObj(false, false);}
+static PyObject * pyinex_CallerA1Full(PyObject *pSelf, PyObject *pArgs) {return AssembleCallerNamePyObj(false, true);}
+static PyObject * pyinex_CallerR1C1(PyObject *pSelf, PyObject *pArgs) {return AssembleCallerNamePyObj(true, false);}
+static PyObject * pyinex_CallerR1C1Full(PyObject *pSelf, PyObject *pArgs) {return AssembleCallerNamePyObj(true, true);}
 
-static PyObject* pyinex_CallerR1C1(PyObject *self, PyObject *args)     { return AssembleCallerNamePyObj(true, false); }
-
-static PyObject* pyinex_CallerR1C1Full(PyObject *self, PyObject *args) { return AssembleCallerNamePyObj(true, true); }
-
-static PyObject* pyinex_CallerSheet(PyObject *self, PyObject *args) { 
-    std::string sheet;
+static PyObject * pyinex_CallerSheet(PyObject *pSelf, PyObject *pArgs) { 
+    string sheet;
     int col, row;
-    GetCallingSheetColRow( &sheet, col, row );
+    GetCallingSheetColRow(&sheet, col, row);
 #if PY_MAJOR_VERSION < 3
     return PyString_FromString(sheet.c_str());
 #else 
@@ -209,30 +199,28 @@ static PyObject* pyinex_CallerSheet(PyObject *self, PyObject *args) {
 
 // This function takes an optional boolean from Python to determine whether or not to clear
 // any observed abort request. True (from Python) = clear the break, and False = don't clear it.
-// This is useful in case one has multiple functions on a sheet that will want to handle a 
-// break request. 
+// This is useful in case one has multiple functions on a sheet that will want to handle a break request. 
 //
 // The call to Excel has the opposite semantics; the flag is "PreserveBreak," with a true 
 // NOT clearing the break. I find that confusing, so I flipped the meaning for Python users.
 
-static PyObject* pyinex_Break(PyObject *self, PyObject *args) { 
+static PyObject* pyinex_Break(PyObject *pSelf, PyObject *pArgs) { 
     // Has a clear-break flag been passed in? If not, default is to NOT clear any break
     bool bClearBreak = false;
 
-    if (PyTuple_Check(args)) {
-        int len = (int)PyObject_Length(args);
+    if (PyTuple_Check(pArgs)) {
+        int len = static_cast<int>(PyObject_Length(pArgs));
         if (len == 0) {
             // Nothing was passed in; take the default action, which is to NOT clear the break
         } else if (len == 1) {
-            PyObject* pElem = PySequence_GetItem(args, 0); // returns a new reference; must decrement
+            PyObject* pElem = PySequence_GetItem(pArgs, 0); // returns a new reference; must decrement
             if (pElem) {
                 if (PyBool_Check(pElem)) {
                     bClearBreak = (pElem == Py_True);
                 } else if (pElem == Py_None) {
                     // User might pass in an empty cell, which will be seen here as None. Consider that a False.
                 } else {
-                    ERROUT("xpy.Break() takes a single optional boolean; instead, a variable of type %s was passed in",
-                        Py_TYPE(pElem)->tp_name);
+                    ERROUT("xpy.Break() takes a single optional boolean; instead, a variable of type %s was passed in", Py_TYPE(pElem)->tp_name);
                 }
                 Py_DECREF(pElem); 
             }
@@ -243,13 +231,12 @@ static PyObject* pyinex_Break(PyObject *self, PyObject *args) {
 
     XlfOper breakReq;
     XlfOper preserveBreak(!bClearBreak);   // as noted above, opposite semantics for Excel
-    XlfExcel::Instance().Call(xlAbort, breakReq, 1, (LPXLFOPER) preserveBreak ); 
+    XlfExcel::Instance().Call(xlAbort, breakReq, 1, static_cast<LPXLFOPER>(preserveBreak)); 
     bool bBreak = breakReq.AsBool();
     
-    return PyBool_FromLong( (long)bBreak );
+    return PyBool_FromLong(static_cast<long>(bBreak));
 }
 
-//////////////////////////////////////////////////////////////////////////////
 
 static PyMethodDef PyinexMethods[] = {
     {"callerA1",       pyinex_CallerA1,         METH_VARARGS, "Returns the calling cell in A1 format"},
@@ -261,7 +248,7 @@ static PyMethodDef PyinexMethods[] = {
     {NULL, NULL, 0, NULL} /* Sentinel */
 };
 
-//////////////////////////////////////////////////////////////////////////////
+
 
 #if PY_MAJOR_VERSION < 3
 
@@ -309,4 +296,4 @@ PyMODINIT_FUNC PyInit_pyinex(void) {
 
 #endif
 
-//////////////////////////////////////////////////////////////////////////////
+

@@ -55,6 +55,18 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using namespace xlw;
 
+
+namespace {
+
+
+	using std::string;
+	using std::wstring;
+	using std::vector;
+
+
+}
+
+
 //////////////////////////////////////////////////////////////////////////////
 //
 // Before Excel 2007, Excel took up to 30 arguments, but even that seems ridiculously many, so I 
@@ -97,32 +109,24 @@ PyMODINIT_FUNC PyInit_pyinex(void);
 // to PyinexGlobalInit::Factory()
 
 
-// <DB>
 
 
-// <\DB>
+#define EXCEL_BEGIN_PYINEX  const PyinexGlobalInit& rGlobalInit = PyinexGlobalInit::Factory(); EXCEL_BEGIN
 
-
-
-#define EXCEL_BEGIN_PYINEX  const PyinexGlobalInit& rGlobalInit = \
-    PyinexGlobalInit::Factory(); EXCEL_BEGIN
 
 namespace {
+
 
     class PyinexGlobalInit {
 
     public:
-        static const PyinexGlobalInit& Factory()
-        {
+        static const PyinexGlobalInit& Factory() {
             static PyinexGlobalInit g_obj;
             return g_obj;
         }
-
-        HWND ConsoleHandle() const { return m_hConsoleWindow; }
-
+        HWND ConsoleHandle() const {return m_hConsoleWindow;}
     private:
-        PyinexGlobalInit()
-        {
+        PyinexGlobalInit() {
             // Get console allocated and output streams hooked up first, so we can log
             // errors in the Python initialization
             AllocConsole();
@@ -141,7 +145,7 @@ namespace {
 
             HMENU hMenu = GetSystemMenu(m_hConsoleWindow, FALSE);
             if (!ModifyMenu(hMenu, SC_CLOSE, MF_BYCOMMAND | MF_GRAYED, NULL, NULL)) {
-                std::string err;
+                string err;
                 GetWindowsErrorText(err);
                 ERROUT(err.c_str());
             }
@@ -167,8 +171,7 @@ namespace {
             PyImport_ImportModule("pyinex");
         }
 
-        ~PyinexGlobalInit()
-        {
+        ~PyinexGlobalInit() {
             Py_Finalize();
 
             // For reasons I don't understand, this call:
@@ -193,7 +196,7 @@ extern "C" {
 //////////////////////////////////////////////////////////////////////////////
 
     LPXLFOPER EXCEL_EXPORT 
-    xlPyCall(   XlfOper xlFilename,  
+    xlPyCall( XlfOper xlFilename,  
                 XlfOper xlFunction,
                 XlfOper xlCM1,
                 XlfOper xlCM2,
@@ -213,17 +216,13 @@ extern "C" {
     {
         EXCEL_BEGIN_PYINEX;
   
-        // Don't execute this call from the function wizard
-        if (XlfExcel::Instance().IsCalledByFuncWiz()) {
+        if (XlfExcel::Instance().IsCalledByFuncWiz())
             return XlfOper(true);
-        }
+
 
         // DON'T DECREMENT THE MODULE POINTER - its lifetime is managed by a separate cache object.
         PyObject* pModule = NULL, *pFunction = NULL;
-        bool rc =  GetPyModuleAndFunctionObjects(  xlFilename.AsWstring(), 
-                                                   xlFunction.AsString(), 
-                                                   pModule, 
-                                                   pFunction);
+        bool rc =  GetPyModuleAndFunctionObjects(xlFilename.AsWstring(), xlFunction.AsString(), pModule, pFunction);
         if (!rc) {
             assert(!pModule);
             assert(!pFunction);
@@ -272,15 +271,13 @@ extern "C" {
             // If it exceeds the number of params that Excel can pass in, there's no way to call this function here.
             // Default param values don't provide a loophole, as Excel has no natural way to support named params.
             if (pyCallArgcount > g_numCMArgs) {
-                ERROUT("Function %s has %d arguments; this exceeds the maximum allowable number %d", 
-                    xlFunction.AsString(), pyCallArgcount, g_numCMArgs);
+                ERROUT("Function %s has %d arguments; this exceeds the maximum allowable number %d", xlFunction.AsString(), pyCallArgcount, g_numCMArgs);
                 rc = false;
             }
 
             // co_flags has the CO_VARARGS bit set if the function has a vararg param in its definition.
-            if (rc && (pCO->co_flags & CO_VARARGS)) {
+            if (rc && (pCO->co_flags & CO_VARARGS))
                 pyCallArgcount = g_numCMArgs; // Forces us to pass everything Excel has on to Python
-            }
         }
 
         // Assemble the args
@@ -306,9 +303,8 @@ extern "C" {
         if (rc) {
             pResult = PyObject_CallObject(pFunction, pArgs);
             if (!pResult) {
-                if (PyErr_Occurred()) {
+                if (PyErr_Occurred())
                     PyErr_Print();
-                }
                 rc = false;
             }
         }
@@ -318,9 +314,8 @@ extern "C" {
         if (rc && pResult != NULL) {
             rc = ConvertPyObjectToCellMatrix(pResult, retMatrix);
             if (!rc) {
-                if (PyErr_Occurred()) {
+                if (PyErr_Occurred())
                     PyErr_Print();
-                }
             }
         }
 
@@ -330,11 +325,10 @@ extern "C" {
         Py_XDECREF(pFunction);
         Py_XDECREF(pResult);
 
-        if (rc) {
+        if (rc)
             return XlfOper(retMatrix);
-        } else {
+        else
             return XlfOper::Error(0);
-        }
 
         EXCEL_END;
     }
@@ -356,7 +350,7 @@ extern "C" {
                                   int& width,
                                   int& height,
                                   bool& preserveLocation,
-                                  std::string& errTxt )
+                                  string& errTxt )
     {
         // The only required param is the showConsole boolean
         if (!xlShowConsole.IsBool()) {
@@ -496,7 +490,7 @@ extern "C" {
 
         int x,y,width,height;
         bool showConsole, preserveLocation;
-        std::string errTxt;
+        string errTxt;
 
         // If showConsole is false, this function doesn't validate the rest of the 
         // input params; it just fails out early to save time
@@ -635,7 +629,7 @@ extern "C" {
             return XlfOper(false);
         }
 
-        std::string library = xlLibrary.AsString();
+        string library = xlLibrary.AsString();
         std::transform( library.begin(), library.end(), library.begin(), (int(*)(int)) tolower );
 
         // Could use "library" var to do the search, rather than these seemingly-superfluous vars, 
@@ -644,7 +638,7 @@ extern "C" {
         //        
         // Plus, we need to set the extension search string, anyway (as it's not passed-in).
 
-        std::wstring basenameSearch, extensionSearch;
+        wstring basenameSearch, extensionSearch;
         if (library == "python") {
             basenameSearch = L"python";
             extensionSearch = L"dll";
@@ -655,16 +649,16 @@ extern "C" {
             return XlfOper("Library param must be \"python\" or \"xpy\"");
         }
 
-        std::vector<std::wstring> vecNames;
+        vector<wstring> vecNames;
         if (!GetLoadedModuleNames(vecNames)) {
             ERROUT("GetLoadedModuleNames failed");
             return XlfOper("GetLoadedModuleNames failed"); 
         }
 
-        std::wstring dllName;
-        std::vector<std::wstring>::const_iterator it;
+        wstring dllName;
+        vector<wstring>::const_iterator it;
         for (it = vecNames.begin(); it!=vecNames.end(); ++it) {
-            std::wstring path, basename, extension;            
+            wstring path, basename, extension;            
             if (!SplitPathBasenameExtension(*it, path, basename, extension)) {
                 ERROUT("Couldn't split module name %s", ASCII_REPR(*it));
                 continue;
@@ -685,22 +679,21 @@ extern "C" {
         }   // vecNames loop
   
         // Should not be possible to find no loaded Python or xpy libs (as this function lives in xpy)
-        if (dllName.empty()) {
+        if (dllName.empty())
             dllName = L"No " + basenameSearch + L" DLL loaded; this should not be possible";
-        }
       
         return XlfOper(dllName); 
         
         EXCEL_END;
     }
 
-//////////////////////////////////////////////////////////////////////////////
 
 } // extern "C"
 
-//////////////////////////////////////////////////////////////////////////////
+
 
 namespace {
+
 
     XLRegistration::Arg PyConsoleArgs[] = {
         { "showConsole", "Required - TRUE to show python console, FALSE to hide it", "XLF_OPER" },
@@ -714,19 +707,21 @@ namespace {
 
     XLRegistration::XLFunctionRegistrationHelper registerPyConsoleArgs(
         "xlPyConsole", "xpyShowConsole", "Shows/hides the xpy console",
-        "xpy", PyConsoleArgs, 6); 
+        "xpy", PyConsoleArgs, 6
+	); 
 
-    /******************/
 
-    XLRegistration::Arg PyClearConsoleArgs[] = {
+
+	XLRegistration::Arg PyClearConsoleArgs[] = {
         { "clearConsole", "Boolean", "XLF_OPER" }
     };
 
     XLRegistration::XLFunctionRegistrationHelper registerPyClearConsoleArgs(
         "xlPyClearConsole", "xpyClearConsole", "Clears the xpy console",
-        "xpy", PyClearConsoleArgs, 1); 
+        "xpy", PyClearConsoleArgs, 1
+	); 
 
-    /******************/
+
 
     XLRegistration::Arg PyVerboseArgs[] = {
         { "verbosity", "Integer setting of Python verbosity flag - default is zero, and higher values are more verbose", "XLF_OPER" }
@@ -734,9 +729,10 @@ namespace {
 
     XLRegistration::XLFunctionRegistrationHelper registerPyVerbose(
         "xlPyVerbose", "xpySetVerbosity", "Sets Python's internal verbosity flag",
-        "xpy", PyVerboseArgs, 1); 
+        "xpy", PyVerboseArgs, 1
+	); 
 
-    /******************/
+
 
     XLRegistration::Arg PyModuleFreshnessCheckArgs[] = {
         { "reloadIfNewer", "Boolean", "XLF_OPER" }
@@ -746,7 +742,7 @@ namespace {
         "xlPyModuleFreshnessCheck", "xpyReloadScripts", "Sets and shows if xpy will reload scripts with newer timestamps",
         "xpy", PyModuleFreshnessCheckArgs, 1); 
 
-    /******************/
+
 
     XLRegistration::Arg PyLoadedLibraryArgs[] = {
         { "library", "Name of library to look up - either 'Python' or 'xpy'", "XLF_OPER" }
@@ -756,7 +752,7 @@ namespace {
         "xlPyLoadedLibrary", "xpyLibrary", "Returns filename of library",
         "xpy", PyLoadedLibraryArgs, 1); 
 
-    /******************/
+
 
     XLRegistration::Arg PyCallArgs[] = {
         { "filename", "Filename of Python script", "XLF_OPER" },
@@ -782,9 +778,10 @@ namespace {
         "xlPyCall", "xpy", "Calls a function in a Python script file",
         "xpy", PyCallArgs, g_numCMArgs + g_argcountBeyondPyArgs); 
 
-    // Compiler doesn't complain if we have too few initializers (only if too many);
-    // need to explicitly test sizing. Nowhere to do this test except in the ctor of a
-    // global object.
+
+
+    // Compiler doesn't complain if we have too few initializers (only if too many); 
+	// need to explicitly test sizing. Nowhere to do this test except in the ctor of a global object.
 
     struct RegSizeTest {
         RegSizeTest() { 
@@ -793,5 +790,10 @@ namespace {
     };
 
     RegSizeTest rst;
-}
-//////////////////////////////////////////////////////////////////////////////
+
+
+} // namespace
+
+
+
+

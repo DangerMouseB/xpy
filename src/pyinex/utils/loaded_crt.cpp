@@ -47,8 +47,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 //////////////////////////////////////////////////////////////////////////////
 
-namespace 
-{    
+namespace {  
+
+	using std::string;
+	using std::wstring;
+	using std::vector;
+	using std::map;
+
     // Function pointers that we'll be calling in each loaded CRT
     //
     // There's also an _wfdopen, but the w only refers to the second param.
@@ -69,18 +74,14 @@ namespace
     typedef FILE* (*FP__p__iob)(void);
 
 
-    //////////////////////////////////////////////////////////////////////////////
-    
-    typedef std::pair<std::wstring, HMODULE> NameModulePair;
+    typedef std::pair<wstring, HMODULE> NameModulePair;
 
-    bool 
-    GetLoadedModules(std::vector<NameModulePair>& vecNameModulePairs)
-    {
+    bool GetLoadedModules(vector<NameModulePair>& vecNameModulePairs) {
         DWORD procID = GetCurrentProcessId(); // no error state, according to the docs
 
         // MSFT docs aren't clear, but example on the web show that these two permissions
         // are needed to be able to enumerate process modules
-        std::string errTxt;    
+        string errTxt;    
         HANDLE hProc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, procID);
         if (!hProc) {
             GetWindowsErrorText(errTxt);
@@ -124,10 +125,10 @@ namespace
     class LoadedCRT 
     {
     public:
-        static bool GetCRTs( std::vector<LoadedCRT>& vecCRT );
+        static bool GetCRTs( vector<LoadedCRT>& vecCRT );
 
-        LoadedCRT( std::wstring& rFN, HMODULE hM );
-        const std::wstring& Filename() const;
+        LoadedCRT( wstring& rFN, HMODULE hM );
+        const wstring& Filename() const;
 
         bool SetupOutputStreams();
 
@@ -143,7 +144,7 @@ namespace
         bool IsValidCRT() const;
 
     private:
-        std::wstring m_filename;
+        wstring m_filename;
         HMODULE m_hModule;
 
         FPprintf            p_printf;
@@ -158,9 +159,8 @@ namespace
         FILE* m_stderr; 
     };
 
-//////////////////////////////////////////////////////////////////////////////
 
-    LoadedCRT::LoadedCRT(std::wstring& rFN, HMODULE hM) : 
+    LoadedCRT::LoadedCRT(wstring& rFN, HMODULE hM) : 
              m_filename(rFN), 
              m_hModule(hM),
 
@@ -177,11 +177,9 @@ namespace
     {
     }
 
-    //////////////////////////////////////////////////////////////////////////////
 
-    bool
-    LoadedCRT::SetPointers() 
-    {
+
+    bool LoadedCRT::SetPointers() {
         // Each sub-call will log adequate errors; no error string needed here
         bool rc = 
             SetFunctionPointer( "printf",          p_printf )         &&
@@ -196,7 +194,7 @@ namespace
             assert(p__p__iob);
             m_stdout = &(p__p__iob()[1]);
             if (!m_stdout) {
-                std::string errTxt;
+                string errTxt;
                 GetWindowsErrorText(errTxt);
                 ERROUT("Couldn't get stdout from candidate CRT %s; %s", ASCII_REPR(m_filename), errTxt.c_str());
                 return false;
@@ -204,7 +202,7 @@ namespace
 
             m_stderr = &(p__p__iob()[2]);
             if (!m_stderr) {
-                std::string errTxt;
+                string errTxt;
                 GetWindowsErrorText(errTxt);
                 ERROUT("Couldn't get stderr from candidate CRT %s; %s", ASCII_REPR(m_filename), errTxt.c_str());
                 return false;
@@ -214,28 +212,21 @@ namespace
         return rc;
     }
 
-    //////////////////////////////////////////////////////////////////////////////
-    // http://support.microsoft.com/default.aspx?scid=kb;en-us;105305 shows how to
+
+	// http://support.microsoft.com/default.aspx?scid=kb;en-us;105305 shows how to
     // redirect stdout and stderr. The only cleverness here is doing it for each
     // loaded CRT, via function pointers extracted from the loaded modules.
 
-    bool 
-    LoadedCRT::SetupOutputStreams()
-    {
+    bool LoadedCRT::SetupOutputStreams() {
         // Each sub-call will log adequate errors; no error string needed here
-        bool rc = SetOneStream("stdout", STD_OUTPUT_HANDLE, m_stdout) &&
-                  SetOneStream("stderr", STD_ERROR_HANDLE, m_stderr);
-        if (rc) {
+        bool rc = SetOneStream("stdout", STD_OUTPUT_HANDLE, m_stdout) && SetOneStream("stderr", STD_ERROR_HANDLE, m_stderr);
+        if (rc)
             printf("Initialized console for %s\n", ASCII_REPR(m_filename));
-        }
         return rc;
     }
 
-    //////////////////////////////////////////////////////////////////////////////
 
-    bool 
-    LoadedCRT::IsValidCRT() const
-    {
+    bool LoadedCRT::IsValidCRT() const {
         return ( (!m_filename.empty()) && 
                   m_hModule            &&
  
@@ -248,51 +239,39 @@ namespace
                   p__p__iob            &&
 
                   m_stdout             && 
-                  m_stderr );
+                  m_stderr
+		);
     }
 
-    //////////////////////////////////////////////////////////////////////////////
 
-    const std::wstring&
-    LoadedCRT::Filename() const {return m_filename;}
+    wstring const & LoadedCRT::Filename() const {return m_filename;}
 
-    //////////////////////////////////////////////////////////////////////////////
-
-    char* LoadedCRT::getenv( const char* _VarName )
-    {
-        if (p_getenv) {
-            return p_getenv(_VarName);
-        } else {
+    char* LoadedCRT::getenv(char const *pVarName) {
+        if (p_getenv)
+            return p_getenv(pVarName);
+        else
             return NULL;
-        }
     }
 
-    //////////////////////////////////////////////////////////////////////////////
-
-    int LoadedCRT::putenv( const char* _EnvString )
-    {
-        if (p_putenv) {
-            return p_putenv(_EnvString);
-        } else {
+    int LoadedCRT::putenv(char const *pEnvString) {
+        if (p_putenv)
+            return p_putenv(pEnvString);
+        else
             return -1;
-        }
     }
 
-    //////////////////////////////////////////////////////////////////////////////
 
-    bool 
-    LoadedCRT::GetCRTs(std::vector<LoadedCRT>& vecCRT)
-    {
-        std::vector<NameModulePair> vecNameModulePairs;
+    bool LoadedCRT::GetCRTs(vector<LoadedCRT> &vecCRT) {
+        vector<NameModulePair> vecNameModulePairs;
         if (!GetLoadedModules(vecNameModulePairs)) {
             ERROUT("GetLoadedModules failed");
             return false;
         }
 
-        std::vector<NameModulePair>::iterator it;
+        vector<NameModulePair>::iterator it;
         for (it = vecNameModulePairs.begin(); it != vecNameModulePairs.end(); ++it) {
 
-            std::wstring path, basename, extension;
+            wstring path, basename, extension;
             if (!SplitPathBasenameExtension( it->first.c_str(), path, basename, extension )) {
                 ERROUT("Couldn't split module name %s", ASCII_REPR(it->first));
                 continue;
@@ -320,26 +299,22 @@ namespace
         return true;
     }   
 
-    //////////////////////////////////////////////////////////////////////////////
 
     template<typename T>
-    bool LoadedCRT::SetFunctionPointer(const char* functionName, T& rpFunc) 
+    bool LoadedCRT::SetFunctionPointer(char const *pFunctionName, T &rpFunc) 
     {
-        rpFunc = (T)GetProcAddress(m_hModule, functionName);
+        rpFunc = (T)GetProcAddress(m_hModule, pFunctionName);
         if (!rpFunc) {
-            std::string errTxt;
+            string errTxt;
             GetWindowsErrorText(errTxt);
-            ERROUT("Couldn't get %s from candidate CRT %s; %s", functionName, ASCII_REPR(m_filename), errTxt.c_str());
+            ERROUT("Couldn't get %s from candidate CRT %s; %s", pFunctionName, ASCII_REPR(m_filename), errTxt.c_str());
             return false;
         }
         return true;
     }
 
-    //////////////////////////////////////////////////////////////////////////////
 
-    bool
-    LoadedCRT::SetOneStream(const char* handleName, DWORD handleType, FILE* pGlobalStream ) 
-    {
+    bool LoadedCRT::SetOneStream(char const *handleName, DWORD handleType, FILE *pGlobalStream) {
         assert(pGlobalStream);
 
         // We probably don't need to call the CRT-specific version of this function on each loaded
@@ -369,17 +344,16 @@ namespace
 
 } // end anonymous namespace
 
-//////////////////////////////////////////////////////////////////////////////
-//
+
 // This is broken out as a separate function because exposing LoadedCRT::
 // GetLoadedModules would require including windows.h in the utils.h header file,
 // plus putting LoadedCRT in there as well. Since this function is not
 // going to be called frequently, it's fine to do this vector copying.
 
 bool
-GetLoadedModuleNames( std::vector<std::wstring>& vecNames )
+GetLoadedModuleNames( vector<wstring>& vecNames )
 {
-    std::vector<NameModulePair> vecNameModulePairs;
+    vector<NameModulePair> vecNameModulePairs;
     if (!GetLoadedModules(vecNameModulePairs)) {
         ERROUT("GetLoadedModules failed");
         return false;
@@ -387,7 +361,7 @@ GetLoadedModuleNames( std::vector<std::wstring>& vecNames )
 
     // Could use a functor + std::transform, but this is less painful/more obvious
     vecNames.reserve(vecNameModulePairs.size());
-    std::vector<NameModulePair>::iterator it;
+    vector<NameModulePair>::iterator it;
     for (it = vecNameModulePairs.begin(); it != vecNameModulePairs.end(); ++it) {
         vecNames.push_back(it->first);
     }
@@ -395,23 +369,20 @@ GetLoadedModuleNames( std::vector<std::wstring>& vecNames )
     return true;
 }
 
-//////////////////////////////////////////////////////////////////////////////
-//
+
 // I think the load-order dependency is such that all CRTs will be loaded before our XLL
 // is loaded. If that supposition is correct and this function is only called from an XLL's 
 // DllMain(), it should always work.
 
-bool
-SetupOutputStreams()
-{
-    std::vector<LoadedCRT> vecCRT;
+bool SetupOutputStreams() {
+    vector<LoadedCRT> vecCRT;
     if (!LoadedCRT::GetCRTs(vecCRT)) {
         ERROUT("LoadedCRT::GetCRTs failed");
         return false;
     }
 
     bool rc = true;
-    std::vector<LoadedCRT>::iterator it;
+    vector<LoadedCRT>::iterator it;
     for (it = vecCRT.begin(); it != vecCRT.end(); ++it) {
         if (!it->SetupOutputStreams()) {
             ERROUT("SetupOutputStreams() failed on %s", ASCII_REPR(it->Filename()));
@@ -422,8 +393,7 @@ SetupOutputStreams()
     return rc;
 }
 
-//////////////////////////////////////////////////////////////////////////////
-//
+
 // Ugly hack. Either we pass back the CRT objects to the caller, so it can set/reset
 // the same objects in a well-understood context, or we pass around maps of CRT name to
 // last-retrieved variable setting. Neither is a good solution, because there's no way to 
@@ -438,20 +408,18 @@ SetupOutputStreams()
 // to happen upon module import (which typically happens once per module per process lifetime in
 // this application). Thus, it's not likely to be a performance problem.
 
-bool
-SetEnvVarsIfUnset( const char* pEnvVar, std::map<std::wstring, bool>& crtSettings ) 
-{
-    std::vector<LoadedCRT> vecCRT;
+bool SetEnvVarsIfUnset(char const *pEnvVar, map<wstring, bool> &crtSettings) {
+    vector<LoadedCRT> vecCRT;
     if (!LoadedCRT::GetCRTs(vecCRT)) {
         ERROUT("GetCRTs failed");
         return false;
     }
 
     bool rc = true, bAlreadySet;
-    std::string valToSet(pEnvVar);
+    string valToSet(pEnvVar);
     valToSet += "=1";
 
-    std::vector<LoadedCRT>::iterator it;
+    vector<LoadedCRT>::iterator it;
     for (it = vecCRT.begin(); it != vecCRT.end(); ++it) {
         bAlreadySet = (it->getenv(pEnvVar) != NULL);
         crtSettings[it->Filename()] =  bAlreadySet;
@@ -463,24 +431,22 @@ SetEnvVarsIfUnset( const char* pEnvVar, std::map<std::wstring, bool>& crtSetting
     return rc;
 }
 
-//////////////////////////////////////////////////////////////////////////////
 
-bool
-ResetEnvVars( const char* pEnvVar, std::map<std::wstring, bool>& crtSettings )
-{
-    std::vector<LoadedCRT> vecCRT;
+
+bool ResetEnvVars(char const *pEnvVar, map<wstring, bool> &crtSettings) {
+    vector<LoadedCRT> vecCRT;
     if (!LoadedCRT::GetCRTs(vecCRT)) {
         ERROUT("GetCRTs failed");
         return false;
     }
 
     bool rc = true;
-    std::string valToSet(pEnvVar), valToReset(pEnvVar);
+    string valToSet(pEnvVar), valToReset(pEnvVar);
     valToSet += "=1";
     valToReset += "=";
-    std::map<std::wstring, bool>::iterator mapIt;
+    map<wstring, bool>::iterator mapIt;
 
-    std::vector<LoadedCRT>::iterator vecIt;
+    vector<LoadedCRT>::iterator vecIt;
     for (vecIt = vecCRT.begin(); vecIt != vecCRT.end(); ++vecIt) {
         mapIt = crtSettings.find(vecIt->Filename());
         if (mapIt == crtSettings.end()) {

@@ -50,6 +50,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <vector>
 #include <map>
 
+
 namespace xlw {
     class CellValue;
     class CellMatrix;
@@ -58,8 +59,7 @@ namespace xlw {
 
 // Severity codes are bitmasks; it will mildly simplify arbitrary output filtering 
 
-enum pyxErrorSeverity
-{
+enum pyxErrorSeverity {
     pyxError    = 0x1,
     pyxWarning  = 0x2,
     pyxInfo     = 0x4
@@ -75,10 +75,8 @@ void PrintError(pyxErrorSeverity severity, char const *pFile, char const *pFunct
 #define WARNOUT(x, ...) (PrintError( pyxWarning, __FILE__, __FUNCTION__, __LINE__, x, __VA_ARGS__ ))
 #define INFOUT(x, ...)  (PrintError( pyxInfo,    __FILE__, __FUNCTION__, __LINE__, x, __VA_ARGS__ ))
 
-// Utility routine to facilitate printing of wstrings that may contain non-ASCII chars
 
-std::string
-WcharToASCIIRepr( const std::wstring& w );
+std::string WcharToASCIIRepr(std::wstring const &w);			// Utility routine to facilitate printing of wstrings that may contain non-ASCII chars
 
 #define ASCII_REPR( x ) (WcharToASCIIRepr(x).c_str())
 
@@ -124,41 +122,26 @@ bool SetupOutputStreams();
 // This hack is needed to set/reset PYTHONCASEOK, so we can handle filenames
 // with non-ASCII characters.
 
-bool SetEnvVarsIfUnset( const char* pEnvVar, std::map<std::wstring, bool>& crtSettings );
+bool SetEnvVarsIfUnset(char const *pEnvVar, std::map<std::wstring, bool> &crtSettings);
 
-bool ResetEnvVars( const char* pEnvVar, std::map<std::wstring, bool>& crtSettings );
+bool ResetEnvVars(char const *pEnvVar, std::map<std::wstring, bool> &crtSettings);
 
-// Used to display names of loaded Python dll and Pyinex XLL
-//
-bool GetLoadedModuleNames( std::vector<std::wstring>& vecNames );
+bool GetLoadedModuleNames(std::vector<std::wstring> &vecNames);		// Used to display names of loaded Python dll and Pyinex XLL
 
-// Translate error code of GetLastError(), which it calls internally
-//
-bool  GetWindowsErrorText(std::string& text);
+bool  GetWindowsErrorText(std::string& text);								// Translate error code of GetLastError(), which it calls internally
 
 // DO NOT decrement the module reference; it's cached by this function
 // DO decrement the function reference; it must be disposed
-//
+
 bool  GetPyModuleAndFunctionObjects(const std::wstring& filename, const std::string& function, PyObject*& rpModule, PyObject*& rpFunction );
 
-// Get/set flag that turns on checking of module file write times and reloads stale modules
-bool ModuleFreshnessCheckEnabled();
+bool ModuleFreshnessCheckEnabled();									// Get/set flag that turns on checking of module file write times and reloads stale modules
 
-void SetModuleFreshnessCheck( bool bCheck );
+void SetModuleFreshnessCheck(bool bCheck);
 
-//
-bool
-ConvertCellMatrixToPyObject( const xlw::CellMatrix& rCM,
-                             PyObject*& rpObj );
+bool ConvertCellMatrixToPyObject(xlw::CellMatrix const &rCM, PyObject * &rpObj);
 
-// Would like for pObj to be const, but Python headers make that
-// impossible (too many internal functions take a non-const ptr)
-//
-bool
-ConvertPyObjectToCellMatrix( PyObject* pObj, 
-                             xlw::CellMatrix& rMat );
+// Would like for pObj to be const, but Python headers make that impossible (too many internal functions take a non-const ptr)
+bool ConvertPyObjectToCellMatrix(PyObject *pObj, xlw::CellMatrix &rMat);
 
-// Diagnostic use only
-//
-void
-CellMatrixDump( xlw::CellMatrix& rMat );
+void CellMatrixDump(xlw::CellMatrix &rMat);							// Diagnostic use only

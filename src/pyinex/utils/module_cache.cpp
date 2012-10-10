@@ -61,51 +61,46 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #undef WINDOWS_FILE_CHANGE_NOTIFICATION_EXPERIMENT
 
-//////////////////////////////////////////////////////////////////////////////
+
 
 namespace {
 
-    bool operator>(const FILETIME& lhs, const FILETIME& rhs) 
-    {
-        if (lhs.dwHighDateTime > rhs.dwHighDateTime) {
+
+	using std::string;
+	using std::map;
+	using std::wstring;
+
+
+    bool operator>(FILETIME const &lhs, FILETIME const &rhs) {
+        if (lhs.dwHighDateTime > rhs.dwHighDateTime)
             return true;
-        }
 
         if (lhs.dwHighDateTime == rhs.dwHighDateTime) {
-            if (lhs.dwLowDateTime > rhs.dwLowDateTime) {
+            if (lhs.dwLowDateTime > rhs.dwLowDateTime)
                 return true;
-            }
         }
 
         return false;
     }
 
-    //////////////////////////////////////////////////////////////////////////////
 
-    class CriticalSectionWrapper 
-    {
+
+    class CriticalSectionWrapper {
     public:
-        CriticalSectionWrapper( CRITICAL_SECTION& rCS ) : m_rCS(rCS) {
-            EnterCriticalSection(&m_rCS);  
-        }
-
-        ~CriticalSectionWrapper() {
-            LeaveCriticalSection(&m_rCS);
-        }
-
+        CriticalSectionWrapper(CRITICAL_SECTION& rCS) : _rCS(rCS) {EnterCriticalSection(&_rCS);}
+        ~CriticalSectionWrapper() {LeaveCriticalSection(&_rCS);}
     private:
-        CRITICAL_SECTION& m_rCS;
+        CRITICAL_SECTION &_rCS;
     };
 
-    //////////////////////////////////////////////////////////////////////////////
 
-    class ModuleCache
-    {
+
+    class ModuleCache {
     public:
         static ModuleCache& Factory();
-        bool GetModule( const std::wstring& filename, PyObject*& rpModule );
+        bool GetModule(wstring const &filename, PyObject * &rpModule);
         bool ModuleFreshnessCheckEnabled() const;
-        void SetModuleFreshnessCheck( bool bCheck );
+        void SetModuleFreshnessCheck(bool bCheck);
 
 #ifdef WINDOWS_FILE_CHANGE_NOTIFICATION_EXPERIMENT
         void DirChanged( void* lpParameter, BOOLEAN TimerOrWaitFired );
@@ -115,13 +110,12 @@ namespace {
         // These classes are just dumb containers for file/directory information. They DO NOT manage the lifecycle
         // of the open handles themselves (i.e., don't close handles in d-tors); that's done by ModuleCache.
 
-        struct FileInfo 
-        {
+        struct FileInfo {
             FileInfo() : m_hFile(INVALID_HANDLE_VALUE), m_bClean(false), m_pModule(NULL) 
             {
                 // Time members aren't so critical; save time by not nulling
             }
-            std::wstring m_filename;
+            wstring m_filename;
             HANDLE m_hFile;
             FILETIME m_creation;
             FILETIME m_lastAccess;
@@ -130,78 +124,49 @@ namespace {
             PyObject* m_pModule;
         };
 
-        struct DirInfo 
-        {
-            DirInfo(): m_hDir(INVALID_HANDLE_VALUE)
+        struct DirInfo {
+            DirInfo() : m_hDir(INVALID_HANDLE_VALUE)
             {
 #ifdef WINDOWS_FILE_CHANGE_NOTIFICATION_EXPERIMENT 
                 m_hDirChangeNotification = 0;
                 m_hWaitObject = 0;
 #endif
             }
-            std::wstring m_dirName;
+            wstring m_dirName;
             HANDLE m_hDir;
 #ifdef WINDOWS_FILE_CHANGE_NOTIFICATION_EXPERIMENT 
             HANDLE m_hDirChangeNotification;
             HANDLE m_hWaitObject;
 #endif
-            std::set<std::wstring> m_setFilesInDir;
+            std::set<wstring> m_setFilesInDir;
         };
 
     private:
-        // Both private to enforce singleton nature of this class
-        ModuleCache();
+        ModuleCache();		// Both private to enforce singleton nature of this class
         ~ModuleCache(); 
 
-        bool GetModuleFirstTime( const std::wstring& canonicalFN, PyObject*& rpModule );
+        bool GetModuleFirstTime(wstring const &canonicalFN, PyObject * &rpModule);
+        inline static bool IsAllASCII(wstring const &w);
+        bool GetNewFileInfo( const wstring &filename, ModuleCache::FileInfo &rNewInfo);
+        bool GetNewDirInfo( const wstring &path, const wstring &filename, ModuleCache::DirInfo &rNewInfo);
 
-        inline static bool IsAllASCII(const std::wstring& w);
+        // These funcs don't need to be static, as they're now private, but if they ever move to Utils.cpp, this makes it clear that they don't use any member vars in ModuleCache.
+        static bool GetFullFilename(wstring const &filename, bool isLongPath, wchar_t *pFullFilename, size_t fullFilenameSize, string &errTxt);
+        static bool GetFullPathBasenameExtension(wstring const &filename, bool isLongPath, wstring &path, wstring &basename, wstring& extension, string &errTxt);
+        static bool GetASCIIFullPathBasenameExtension(wstring const &filename, wstring &path, wstring &basename, wstring &extension, bool &bBasenameIsShort, string &errTxt);
+        bool ImportOrReload(wstring const &filename, bool importRatherThanReload, PyObject * &rpModule);
 
-        bool GetNewFileInfo( const std::wstring& filename, ModuleCache::FileInfo& rNewInfo ) ;
-        bool GetNewDirInfo( const std::wstring& path, 
-                            const std::wstring& filename,
-                            ModuleCache::DirInfo& rNewInfo );
-
-        // These funcs don't need to be static, as they're now private, but if they ever move
-        // to Utils.cpp, this makes it clear that they don't use any member vars in ModuleCache.
-
-        static bool GetFullFilename( const std::wstring& filename, 
-                                     bool bLongPath, // false == short path
-                                     wchar_t* pFullFilename, // max necessary is size UNICODE_MAX_PATH 
-                                     size_t fullFilenameSize,
-                                     std::string& errTxt );
-
-        static bool GetFullPathBasenameExtension( const std::wstring& filename, 
-                                                  bool bLongPath, // false == short path
-                                                  std::wstring& path, 
-                                                  std::wstring& basename,
-                                                  std::wstring& extension,
-                                                  std::string& errTxt );
-
-        static bool GetASCIIFullPathBasenameExtension( const std::wstring& filename, 
-                                                       std::wstring& path, 
-                                                       std::wstring& basename, 
-                                                       std::wstring& extension,
-                                                       bool& bBasenameIsShort, 
-                                                       std::string& errTxt );
-
-        bool ImportOrReload( const std::wstring& filename,
-                             bool bImport,  // if true, import, else reload
-                             PyObject*& rpModule );
-
-    private:
-        typedef std::map<std::wstring, std::wstring> WstringWstringMap;
+        typedef map<wstring, wstring> WstringWstringMap;
         WstringWstringMap m_mapUserFNToCanonicalFN;
 
-        typedef std::map<std::wstring, FileInfo> FileInfoMap;
-        typedef std::map<std::wstring, DirInfo> DirInfoMap;
-        FileInfoMap       m_mapFileInfo;
-        DirInfoMap        m_mapDirInfo;
-
+        typedef map<wstring, FileInfo> FileInfoMap;
+        typedef map<wstring, DirInfo> DirInfoMap;
+        FileInfoMap m_mapFileInfo;
+        DirInfoMap m_mapDirInfo;
         bool m_bModuleFreshnessCheck;
 
-        // Used by callback function to find DirInfo from dir file handle
-        typedef std::map<HANDLE, std::wstring> DirNameMap;
+		typedef map<HANDLE, wstring> DirNameMap;	        // Used by callback function to find DirInfo from dir file handle
+
 
 #ifdef WINDOWS_FILE_CHANGE_NOTIFICATION_EXPERIMENT 
         DirNameMap m_mapDirNames;
@@ -209,34 +174,27 @@ namespace {
         CRITICAL_SECTION m_cs;
     };
 
-    //////////////////////////////////////////////////////////////////////////////
 
-    ModuleCache& 
-    ModuleCache::Factory()
-    {
+
+    ModuleCache &  ModuleCache::Factory() {
         static ModuleCache f;
         return f;
     }
 
-    //////////////////////////////////////////////////////////////////////////////
+
 
  #ifdef  WINDOWS_FILE_CHANGE_NOTIFICATION_EXPERIMENT 
 
-    VOID CALLBACK 
-    DirChangeCallback ( PVOID lpParameter,
-                        BOOLEAN TimerOrWaitFired )
-    {
+	VOID CALLBACK DirChangeCallback(PVOID lpParameter, BOOLEAN TimerOrWaitFired) {
         ModuleCache& rMC = ModuleCache::Factory();
         rMC.DirChanged(lpParameter, TimerOrWaitFired);
     }
 
-    void 
-    ModuleCache::DirChanged( void* lpParameter, BOOLEAN TimerOrWaitFired )
-    {
+	void ModuleCache::DirChanged(void *lpParameter, BOOLEAN TimerOrWaitFired) {
         CriticalSectionWrapper csWrapper(m_cs);  // exception-safe; exits CS in d-tor
 
         printf("Here: %d %d %d\n", (int)lpParameter, (int)TimerOrWaitFired, GetCurrentThreadId());
-        std::wstring& dirName = m_mapDirNames[(HANDLE) lpParameter];
+        wstring& dirName = m_mapDirNames[(HANDLE) lpParameter];
         if (dirName.empty()) {
             ERROUT("Dir file handle %d doesn't map to a known directory name", (int)lpParameter);
         } else {
@@ -249,33 +207,23 @@ namespace {
 
 #endif
     
-    //////////////////////////////////////////////////////////////////////////////
 
-    bool 
-    ModuleCache::ModuleFreshnessCheckEnabled() const
-    {
+    bool ModuleCache::ModuleFreshnessCheckEnabled() const {
         return m_bModuleFreshnessCheck;
     }
 
-    //////////////////////////////////////////////////////////////////////////////
 
-    void 
-    ModuleCache::SetModuleFreshnessCheck( bool bCheck )
-    {
+    void ModuleCache::SetModuleFreshnessCheck(bool bCheck) {
         m_bModuleFreshnessCheck = bCheck;
     } 
 
-    //////////////////////////////////////////////////////////////////////////////
-    //
-    // This is the only public function that touches anything that
-    // needs synchronization; everything that requires locking is
-    // called from within here
 
-    bool 
-    ModuleCache::GetModule( const std::wstring& filename, // may have relative paths
-                            PyObject*& rpModule )
-    {
-        bool rc = true;
+	// This is the only public function that touches anything that needs synchronization; 
+	// everything that requires locking is called from within here
+
+	bool ModuleCache::GetModule(wstring const &filename, PyObject * &rpModule) {
+		// may have relative paths in filename
+		bool rc = true;
         CriticalSectionWrapper csWrapper(m_cs);  // exception-safe; exits CS in d-tor
 
         // What's this file's canonical name?
@@ -288,7 +236,7 @@ namespace {
         // by their full, canonical name internally, which means we have to do some mapping at initial
         // load time.
 
-        std::wstring canonicalFN;
+        wstring canonicalFN;
         WstringWstringMap::iterator nameIt = m_mapUserFNToCanonicalFN.find(filename);
         if (nameIt != m_mapUserFNToCanonicalFN.end()) {
             canonicalFN = nameIt->second;
@@ -297,7 +245,7 @@ namespace {
             // it may refer to a canonical filename we've never seen
 
             wchar_t pFullFilename[UNICODE_MAX_PATH];
-            std::string errTxt;
+            string errTxt;
             rc = GetFullFilename( filename.c_str(), true, pFullFilename, NELEMS(pFullFilename), errTxt ); 
             if (!rc) {
                 ERROUT("Couldn't get canonical name of %s: %s", ASCII_REPR(filename), errTxt);
@@ -329,7 +277,7 @@ namespace {
             // XXX See comment about Parallels, above, and the need to use fresh handles on a file. 
             // File handle is opened and closed in this call.
             if ( !ModuleCache::GetNewFileInfo( newInfo.m_filename, newInfo) ) {
-                std::string tmp;
+                string tmp;
                 GetWindowsErrorText(tmp);
                 ERROUT("GetNewFileInfo on once-loaded file %s failed: %s", ASCII_REPR(canonicalFN), tmp.c_str());
                 rc = false;
@@ -338,7 +286,7 @@ namespace {
 Doesn't work in Parallels...
 
             if (GetFileTime(newInfo.m_hFile, &newInfo.m_creation, &newInfo.m_lastAccess, &newInfo.m_lastWrite) != TRUE) {
-                std::string tmp;
+                string tmp;
                 GetWindowsErrorText(tmp);
                 ERROUT("GetFileTime on already-loaded file %s failed: %s", ASCII_REPR(canonicalFN), tmp.c_str());
                 rc = false;
@@ -366,7 +314,7 @@ Doesn't work in Parallels...
 
     //////////////////////////////////////////////////////////////////////////////
 
-    bool ModuleCache::GetModuleFirstTime( const std::wstring& canonicalFN,  PyObject*& rpModule )
+    bool ModuleCache::GetModuleFirstTime( const wstring& canonicalFN,  PyObject*& rpModule )
     {
         bool rc = true;
 
@@ -385,9 +333,9 @@ Doesn't work in Parallels...
         // to the OS, but as it's only done once per newly-seen filename (at initial load),
         // we'll take the speed hit.
 
-        std::wstring path;
+        wstring path;
         if (rc) {
-            std::wstring basename, extension;
+            wstring basename, extension;
             rc = SplitPathBasenameExtension(canonicalFN, path, basename, extension);
             if (!rc) {
                 ERROUT("Failed to split filename %s", ASCII_REPR(canonicalFN));
@@ -480,13 +428,10 @@ Doesn't work in Parallels...
         DeleteCriticalSection(&m_cs);
     }
 
-    //////////////////////////////////////////////////////////////////////////////
-    //
-    // Not wrapped in CS; caller has to lock resources
-    //
-
-    bool 
-    ModuleCache::GetNewFileInfo( const std::wstring& filename,
+    
+	// Not wrapped in CS; caller has to lock resources
+    
+    bool ModuleCache::GetNewFileInfo( const wstring& filename,
                                  ModuleCache::FileInfo& rNewInfo ) 
     {
         // Access flags must be shared read, so Python can load the module while we hold
@@ -512,14 +457,14 @@ Doesn't work in Parallels...
         if (rNewInfo.m_hFile == INVALID_HANDLE_VALUE) {
             //  Don't null m_hFile; validity checks in caller will be looking for 
             // INVALID_HANDLE_VALUE, rather than zero
-            std::string tmp;
+            string tmp;
             GetWindowsErrorText(tmp);
             ERROUT("CreateFile on %s failed: %s", ASCII_REPR(filename), tmp.c_str());
             rc = false;
         }
 
         if (rc && GetFileTime(rNewInfo.m_hFile, &rNewInfo.m_creation, &rNewInfo.m_lastAccess, &rNewInfo.m_lastWrite)!= TRUE) {
-            std::string tmp;
+            string tmp;
             GetWindowsErrorText(tmp);
             ERROUT("GetFileTime on unloaded file %s failed: %s", ASCII_REPR(filename), tmp.c_str());
             rc = false;
@@ -540,29 +485,25 @@ Doesn't work in Parallels...
         return rc;
     }
 
-    //////////////////////////////////////////////////////////////////////////////
-    //
-    // Not wrapped in CS; caller has to lock resources
-    //
 
-    bool 
-    ModuleCache::GetNewDirInfo( const std::wstring& path,
-                                const std::wstring& filename,
-                                ModuleCache::DirInfo& rNewInfo ) 
-    {
+	// Not wrapped in CS; caller has to lock resources
+
+    bool ModuleCache::GetNewDirInfo(wstring const &path, wstring const &filename, ModuleCache::DirInfo &rNewInfo) {
         bool rc = true;
-        rNewInfo.m_hDir = CreateFileW( path.c_str(), 
-                                       GENERIC_READ, 
-                                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 
-                                       NULL, 
-                                       OPEN_EXISTING,
-                                       FILE_FLAG_BACKUP_SEMANTICS,
-                                       NULL );
+        rNewInfo.m_hDir = CreateFileW(
+					path.c_str(), 
+					GENERIC_READ, 
+                   FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 
+                   NULL, 
+                   OPEN_EXISTING,
+                   FILE_FLAG_BACKUP_SEMANTICS,
+                   NULL
+		);
 
         if (rNewInfo.m_hDir == INVALID_HANDLE_VALUE) {
             //  Don't null m_hDir; validity checks in caller will be looking for 
             // INVALID_HANDLE_VALUE, rather than zero
-            std::string tmp;
+            string tmp;
             GetWindowsErrorText(tmp);
             ERROUT("CreateFile on %s failed: %s", ASCII_REPR(path), tmp.c_str());
             rc = false;
@@ -631,29 +572,19 @@ Doesn't work in Parallels...
     // a bit faster to pass it single-width strings. Pyton 3.x unavoidably downcoverts on each call, as it keeps strings as 
     // Unicode internally.
 
-    inline bool ModuleCache::IsAllASCII(const std::wstring& w) 
-    {
+    inline bool ModuleCache::IsAllASCII(const wstring& w) {
         unsigned long len = w.length();
         for(unsigned long i = 0; i < len; ++i) {
-            if (w[i] > 0x7F) {
+            if (w[i] > 0x7F)
                 return false;
-            }
         }
         return true;
     }
 
-    //////////////////////////////////////////////////////////////////////////////
-    //
-    // Retrieves the long/short pathnames, splits them, and checks for ASCII-ness
-    //
 
-    bool 
-    ModuleCache::GetFullFilename( const std::wstring& filename, 
-                                  bool bLongPath, // false == short path
-                                  wchar_t* pFullFilename,
-                                  size_t fullFilenameSize,
-                                  std::string& errTxt )
-    {
+    // Retrieves the long/short pathnames, splits them, and checks for ASCII-ness
+    
+	bool ModuleCache::GetFullFilename(wstring const &filename, bool isLongPath, wchar_t *pFullFilename, size_t fullFilenameSize, string& errTxt) {
         // Must call GetFullPathName to take out . and .. shortcuts; it puts together a fully-qualified path.
         // FYI: current dir is a process-global variable, and multiple writer threads can step on it, it can
         // change during process lifetime, etc..
@@ -662,17 +593,17 @@ Doesn't work in Parallels...
         pFullFilename[0] = 0;
         wchar_t pFullPathName[UNICODE_MAX_PATH];
         wchar_t* pFP;
-        DWORD dw = GetFullPathNameW( filename.c_str(), NELEMS(pFullPathName), pFullPathName, &pFP); 
+        DWORD dw = GetFullPathNameW(filename.c_str(), NELEMS(pFullPathName), pFullPathName, &pFP); 
         if (!dw) {
             GetWindowsErrorText(errTxt);
             return false;
         }
 
         // Get(Long|Short)PathnameW() validates file existence
-        if (bLongPath) {
-            dw = GetLongPathNameW(  pFullPathName, pFullFilename, fullFilenameSize );
+        if (isLongPath) {
+            dw = GetLongPathNameW(pFullPathName, pFullFilename, fullFilenameSize);
         } else {
-            dw = GetShortPathNameW( pFullPathName, pFullFilename, fullFilenameSize );
+            dw = GetShortPathNameW(pFullPathName, pFullFilename, fullFilenameSize);
         }
         if (!dw) {
             GetWindowsErrorText(errTxt);
@@ -682,21 +613,18 @@ Doesn't work in Parallels...
         return true;
     }
 
-    //////////////////////////////////////////////////////////////////////////////
-    //
-    // Retrieves the long/short pathnames, splits them, and checks for ASCII-ness
-    //
 
-    bool 
-    ModuleCache::GetFullPathBasenameExtension( const std::wstring& filename, 
-                                               bool bLongPath, // false == short path
-                                               std::wstring& path,  
-                                               std::wstring& basename,
-                                               std::wstring& extension,
-                                               std::string& errTxt ) 
+	// Retrieves the long/short pathnames, splits them, and checks for ASCII-ness
+
+    bool ModuleCache::GetFullPathBasenameExtension(wstring const &filename, 
+                                               bool isLongPath, // false == short path
+                                               wstring& path,  
+                                               wstring& basename,
+                                               wstring& extension,
+                                               string& errTxt ) 
     {
         wchar_t pFullFilename[UNICODE_MAX_PATH];
-        if (!GetFullFilename(filename, bLongPath, pFullFilename, NELEMS(pFullFilename), errTxt)) {
+        if (!GetFullFilename(filename, isLongPath, pFullFilename, NELEMS(pFullFilename), errTxt)) {
             return false; 
         }
    
@@ -715,12 +643,12 @@ Doesn't work in Parallels...
     // brokenness w.r.t Unicode filenames.
 
     bool 
-    ModuleCache::GetASCIIFullPathBasenameExtension( const std::wstring& filename, 
-                                                    std::wstring& path, 
-                                                    std::wstring& basename, 
-                                                    std::wstring& extension,
+    ModuleCache::GetASCIIFullPathBasenameExtension( const wstring& filename, 
+                                                    wstring& path, 
+                                                    wstring& basename, 
+                                                    wstring& extension,
                                                     bool& bBasenameIsShort, // Need to return this for a hack one level up (setting of PYTHONCASEOK)
-                                                    std::string& errTxt ) 
+                                                    string& errTxt ) 
     {
         if (!GetFullPathBasenameExtension( filename, true, path, basename, extension, errTxt)){
             // errTxt is already set
@@ -737,7 +665,7 @@ Doesn't work in Parallels...
         // and that `will be checked by the caller.
 
         if (! (bLongPathIsASCII && bLongBasenameIsASCII) ) {			
-            std::wstring shortPath, shortBasename, shortExt;
+            wstring shortPath, shortBasename, shortExt;
             if (!GetFullPathBasenameExtension( filename, false, shortPath, shortBasename, shortExt, errTxt)){
                 // errTxt is already set
                 return false;
@@ -760,13 +688,13 @@ Doesn't work in Parallels...
     //////////////////////////////////////////////////////////////////////////////
 
     bool 
-    ModuleCache::ImportOrReload( const std::wstring& filename,
+    ModuleCache::ImportOrReload( const wstring& filename,
                                  bool bImport,  // if false, reload
                                  PyObject*& rpModule )   // May not be NULL - may have pointer to previous import of module
     {
-        std::wstring path, basename, extension;
+        wstring path, basename, extension;
         bool bBasenameIsShort;
-        std::string errTxt;
+        string errTxt;
 
         bool rc = GetASCIIFullPathBasenameExtension( filename, path, basename, 
             extension, bBasenameIsShort, errTxt );
@@ -834,7 +762,7 @@ Doesn't work in Parallels...
                 // so we'll do so if it's not already set. This has to be done for all 
                 // loaded CRTs, so the job is farmed out the code that sets up the output streams.
 
-                std::map<std::wstring, bool> crtSettings;
+                map<wstring, bool> crtSettings;
                 if (bBasenameIsShort) {
                     if (!SetEnvVarsIfUnset( "PYTHONCASEOK", crtSettings )) {
                         // No need to fail out; the module import will almost certainly fail
@@ -876,17 +804,17 @@ Doesn't work in Parallels...
         return rc;
     }
 
-//////////////////////////////////////////////////////////////////////////////
+
 
 } // end of anonymous namespace
 
-//////////////////////////////////////////////////////////////////////////////
 
-bool GetPyModuleAndFunctionObjects(const std::wstring& filename, const std::string& function, PyObject*& rpModule, PyObject*& rpFunction ) {   
+
+bool GetPyModuleAndFunctionObjects(wstring const &filename, string const &function, PyObject * &rpModule, PyObject * &rpFunction) {   
     bool rc;
     rpModule = rpFunction = NULL;
 
-    rc = ModuleCache::Factory().GetModule( filename, rpModule );
+    rc = ModuleCache::Factory().GetModule(filename, rpModule);
     if (!rc || !rpModule) {
         ERROUT("Couldn't get python module %s", ASCII_REPR(filename));
         return false;

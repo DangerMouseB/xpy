@@ -56,8 +56,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Don't be anxious about building it yourself - the python.org donwload is very
 // easy (and fast).
 
-// Best to define this in the configuration properties; in this release, it's 
-// only set for Debug-26
+// Best to define this in the configuration properties; in this release, it's only set for Debug-26
 
 #ifdef PYTHON_DEBUG_BUILD_PRESENT
 
