@@ -1,0 +1,3 @@
+Acknowledge XLW and pyinex copyrights
+
+This is LGPL.
